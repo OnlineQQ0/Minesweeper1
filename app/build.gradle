@@ -26,19 +26,6 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
-    // Добавляем настройки для AAPT2
-    aaptOptions {
-        cruncherEnabled = false
-        useNewCruncher = false
-    }
-
-    // Добавляем настройки для Gradle
-    dexOptions {
-        javaMaxHeapSize "4g"
-        preDexLibraries true
-    }
-
-    // Увеличиваем тайм-аут
     buildToolsVersion "33.0.0"
 }
 
