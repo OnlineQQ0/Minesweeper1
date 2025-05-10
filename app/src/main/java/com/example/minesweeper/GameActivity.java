@@ -1,252 +1,234 @@
 package com.example.minesweeper;
 
-import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
-import android.content.DialogInterface;
+import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
-import android.view.Gravity;
-import android.view.View;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Button;
 import android.widget.GridLayout;
 import android.widget.TextView;
-import android.widget.Toast;
-
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.AppCompatButton;
 import java.util.Random;
 
 public class GameActivity extends AppCompatActivity {
 
-    private int boardSize;
-    private int numMines;
-    private Cell[][] cells;
-    private GridLayout gridLayout;
+    private GridLayout gridLayoutMines;
     private TextView textViewGameInfo;
+    private TextView stopwatchText;
     private Button buttonNewGame;
     private Button buttonBack;
-    private boolean gameActive = true;
-    private int cellsRevealed = 0;
+    private int boardSize;
+    private int minesCount;
+    private Cell[][] cells;
+    private boolean isFirstClick = true;
+    private Handler handler;
+    private Runnable stopwatchRunnable;
+    private long startTime;
+    private boolean isStopwatchRunning;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_game);
 
-        // Получаем параметры игры
-        boardSize = getIntent().getIntExtra("BOARD_SIZE", 4);
-        numMines = getIntent().getIntExtra("NUM_MINES", 3);
-
-        gridLayout = findViewById(R.id.gridLayoutMines);
+        gridLayoutMines = findViewById(R.id.gridLayoutMines);
         textViewGameInfo = findViewById(R.id.textViewGameInfo);
+        stopwatchText = findViewById(R.id.stopwatchText);
         buttonNewGame = findViewById(R.id.buttonNewGame);
         buttonBack = findViewById(R.id.buttonBack);
 
-        textViewGameInfo.setText("Мины: " + numMines);
+        boardSize = getIntent().getIntExtra("BOARD_SIZE", 4);
+        minesCount = getIntent().getIntExtra("MINES", 4);
 
-        buttonNewGame.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                setupGame();
-            }
+        isStopwatchRunning = false;
+        startTime = 0;
+        stopwatchText.setText("Time: 0s");
+        handler = new Handler(Looper.getMainLooper());
+
+        initGame();
+
+        buttonNewGame.setOnClickListener(v -> {
+            isFirstClick = true;
+            stopStopwatch();
+            stopwatchText.setText("Time: 0s");
+            initGame();
         });
 
-        buttonBack.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                finish();
-            }
-        });
-
-        setupGame();
+        buttonBack.setOnClickListener(v -> finish());
     }
 
-    private void setupGame() {
-        // Очищаем поле
-        gridLayout.removeAllViews();
-        gridLayout.setColumnCount(boardSize);
-        gridLayout.setRowCount(boardSize);
-
-        // Инициализируем ячейки
+    private void initGame() {
         cells = new Cell[boardSize][boardSize];
-        gameActive = true;
-        cellsRevealed = 0;
+        gridLayoutMines.removeAllViews();
+        gridLayoutMines.setRowCount(boardSize);
+        gridLayoutMines.setColumnCount(boardSize);
 
-        // Создаем кнопки для поля
-        for (int row = 0; row < boardSize; row++) {
-            for (int col = 0; col < boardSize; col++) {
-                cells[row][col] = new Cell(row, col);
-
-                Button button = new Button(this);
-                button.setLayoutParams(new GridLayout.LayoutParams());
-                button.setMinimumWidth(0);
-                button.setMinimumHeight(0);
-
-                // Устанавливаем размер кнопки в зависимости от размера поля
-                int cellSize = boardSize == 4 ? 100 : 60;
-                button.setWidth(cellSize);
-                button.setHeight(cellSize);
-
-                button.setPadding(0, 0, 0, 0);
-                button.setBackgroundResource(R.drawable.cell_button);
-
-                final int finalRow = row;
-                final int finalCol = col;
-
-                button.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        if (gameActive) {
-                            handleCellClick(finalRow, finalCol);
-                        }
-                    }
-                });
-
-                cells[row][col].setButton(button);
-                gridLayout.addView(button);
+        for (int i = 0; i < boardSize; i++) {
+            for (int j = 0; j < boardSize; j++) {
+                cells[i][j] = new Cell(this);
+                GridLayout.LayoutParams params = new GridLayout.LayoutParams();
+                params.width = 100;
+                params.height = 100;
+                params.rowSpec = GridLayout.spec(i);
+                params.columnSpec = GridLayout.spec(j);
+                cells[i][j].setLayoutParams(params);
+                cells[i][j].setText("");
+                cells[i][j].setBackgroundColor(getResources().getColor(android.R.color.darker_gray));
+                cells[i][j].setTextColor(getResources().getColor(android.R.color.black));
+                final int row = i;
+                final int col = j;
+                cells[i][j].setOnClickListener(v -> handleCellClick(row, col));
+                gridLayoutMines.addView(cells[i][j]);
             }
         }
 
-        // Расставляем мины
-        placeMines();
-        calculateNumbers();
+        textViewGameInfo.setText("Mines: " + minesCount);
     }
 
-    private void placeMines() {
+    private void handleCellClick(int row, int col) {
+        if (isFirstClick) {
+            isFirstClick = false;
+            placeMines(row, col);
+            calculateNumbers();
+            startStopwatch();
+        }
+
+        openCell(row, col);
+        checkGameStatus();
+    }
+
+    private void placeMines(int firstRow, int firstCol) {
         Random random = new Random();
-        int minesPlaced = 0;
-
-        while (minesPlaced < numMines) {
-            int row = random.nextInt(boardSize);
-            int col = random.nextInt(boardSize);
-
-            if (!cells[row][col].isMine()) {
-                cells[row][col].setMine(true);
-                minesPlaced++;
+        int placedMines = 0;
+        while (placedMines < minesCount) {
+            int r = random.nextInt(boardSize);
+            int c = random.nextInt(boardSize);
+            if ((r != firstRow || c != firstCol) && !cells[r][c].isMine()) {
+                cells[r][c].setMine(true);
+                placedMines++;
             }
         }
     }
 
     private void calculateNumbers() {
-        for (int row = 0; row < boardSize; row++) {
-            for (int col = 0; col < boardSize; col++) {
-                if (cells[row][col].isMine()) continue;
-
-                int count = 0;
-
-                // Проверяем все 8 соседних клеток
-                for (int r = Math.max(0, row - 1); r <= Math.min(boardSize - 1, row + 1); r++) {
-                    for (int c = Math.max(0, col - 1); c <= Math.min(boardSize - 1, col + 1); c++) {
-                        if (r == row && c == col) continue;
-                        if (cells[r][c].isMine()) count++;
+        for (int i = 0; i < boardSize; i++) {
+            for (int j = 0; j < boardSize; j++) {
+                if (!cells[i][j].isMine()) {
+                    int count = 0;
+                    for (int di = -1; di <= 1; di++) {
+                        for (int dj = -1; dj <= 1; dj++) {
+                            int ni = i + di;
+                            int nj = j + dj;
+                            if (ni >= 0 && ni < boardSize && nj >= 0 && nj < boardSize && cells[ni][nj].isMine()) {
+                                count++;
+                            }
+                        }
                     }
+                    cells[i][j].setNumber(count);
                 }
-
-                cells[row][col].setAdjacentMines(count);
             }
         }
     }
 
-    private void handleCellClick(int row, int col) {
-        if (cells[row][col].isRevealed()) return;
-
-        cells[row][col].reveal();
-        cellsRevealed++;
-
-        if (cells[row][col].isMine()) {
-            // Попали на мину - проигрыш
-            gameOver(false);
+    private void openCell(int row, int col) {
+        if (row < 0 || row >= boardSize || col < 0 || col >= boardSize || cells[row][col].isOpen()) {
             return;
         }
-
-        Button button = cells[row][col].getButton();
-
-        if (cells[row][col].getAdjacentMines() > 0) {
-            button.setText(String.valueOf(cells[row][col].getAdjacentMines()));
-
-            // Устанавливаем цвет числа в зависимости от количества мин рядом
-            switch (cells[row][col].getAdjacentMines()) {
+        cells[row][col].setOpen(true);
+        if (cells[row][col].isMine()) {
+            for (int i = 0; i < boardSize; i++) {
+                for (int j = 0; j < boardSize; j++) {
+                    if (cells[i][j].isMine()) {
+                        cells[i][j].setText("X");
+                        cells[i][j].setBackgroundColor(getResources().getColor(android.R.color.holo_red_light));
+                    }
+                }
+            }
+            stopStopwatch();
+            isFirstClick = true;
+            handler.postDelayed(this::initGame, 1000);
+        } else {
+            int number = cells[row][col].getNumber();
+            cells[row][col].setText(number > 0 ? String.valueOf(number) : "");
+            cells[row][col].setBackgroundColor(getResources().getColor(android.R.color.white));
+            switch (number) {
                 case 1:
-                    button.setTextColor(getResources().getColor(android.R.color.holo_blue_dark));
+                    cells[row][col].setTextColor(getResources().getColor(android.R.color.holo_blue_dark));
                     break;
                 case 2:
-                    button.setTextColor(getResources().getColor(android.R.color.holo_green_dark));
+                    cells[row][col].setTextColor(getResources().getColor(android.R.color.holo_green_dark));
                     break;
                 case 3:
-                    button.setTextColor(getResources().getColor(android.R.color.holo_red_light));
+                    cells[row][col].setTextColor(getResources().getColor(android.R.color.holo_red_dark));
+                    break;
+                case 4:
+                    cells[row][col].setTextColor(getResources().getColor(android.R.color.holo_purple));
                     break;
                 default:
-                    button.setTextColor(getResources().getColor(android.R.color.holo_purple));
+                    cells[row][col].setTextColor(getResources().getColor(android.R.color.black));
                     break;
             }
-        } else {
-            // Если рядом нет мин, открываем соседние клетки
-            button.setText("");
-            revealAdjacentCells(row, col);
-        }
-
-        // Проверяем, выиграл ли игрок
-        if (cellsRevealed == (boardSize * boardSize) - numMines) {
-            gameOver(true);
-        }
-    }
-
-    private void revealAdjacentCells(int row, int col) {
-        for (int r = Math.max(0, row - 1); r <= Math.min(boardSize - 1, row + 1); r++) {
-            for (int c = Math.max(0, col - 1); c <= Math.min(boardSize - 1, col + 1); c++) {
-                if (r == row && c == col) continue;
-                if (!cells[r][c].isRevealed() && !cells[r][c].isMine()) {
-                    handleCellClick(r, c);
+            if (number == 0) {
+                for (int di = -1; di <= 1; di++) {
+                    for (int dj = -1; dj <= 1; dj++) {
+                        openCell(row + di, col + dj);
+                    }
                 }
             }
         }
     }
 
-    private void gameOver(boolean win) {
-        gameActive = false;
-
-        // Показываем все мины
-        for (int row = 0; row < boardSize; row++) {
-            for (int col = 0; col < boardSize; col++) {
-                if (cells[row][col].isMine()) {
-                    Button button = cells[row][col].getButton();
-                    button.setText("💣");
+    private void checkGameStatus() {
+        int closedNonMines = 0;
+        for (int i = 0; i < boardSize; i++) {
+            for (int j = 0; j < boardSize; j++) {
+                if (!cells[i][j].isOpen() && !cells[i][j].isMine()) {
+                    closedNonMines++;
                 }
             }
         }
-
-        // Показываем сообщение о победе или проигрыше
-        new AlertDialog.Builder(this)
-                .setTitle(win ? "Победа!" : "Проигрыш!")
-                .setMessage(win ? "Поздравляем! Вы успешно нашли все мины!" : "Вы попали на мину. Попробуйте еще раз!")
-                .setPositiveButton("Новая игра", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        setupGame();
-                    }
-                })
-                .setNegativeButton("В меню", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        finish();
-                    }
-                })
-                .setCancelable(false)
-                .show();
+        if (closedNonMines == 0) {
+            stopStopwatch();
+            isFirstClick = true;
+            handler.postDelayed(this::initGame, 1000);
+        }
     }
 
-    // Класс для представления ячейки игрового поля
-    private class Cell {
-        private int row;
-        private int col;
+    private void startStopwatch() {
+        isStopwatchRunning = true;
+        startTime = System.currentTimeMillis();
+        stopwatchRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (isStopwatchRunning) {
+                    long elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000;
+                    stopwatchText.setText("Time: " + elapsedSeconds + "s");
+                    handler.postDelayed(this, 1000);
+                }
+            }
+        };
+        handler.post(stopwatchRunnable);
+    }
+
+    private void stopStopwatch() {
+        isStopwatchRunning = false;
+        if (stopwatchRunnable != null) {
+            handler.removeCallbacks(stopwatchRunnable);
+        }
+    }
+
+    private static class Cell extends AppCompatButton {
         private boolean isMine;
-        private int adjacentMines;
-        private boolean isRevealed;
-        private Button button;
+        private boolean isOpen;
+        private int number;
 
-        public Cell(int row, int col) {
-            this.row = row;
-            this.col = col;
-            this.isMine = false;
-            this.adjacentMines = 0;
-            this.isRevealed = false;
+        public Cell(Context context) {
+            super(context);
+            isMine = false;
+            isOpen = false;
+            number = 0;
         }
 
         public boolean isMine() {
@@ -257,30 +239,20 @@ public class GameActivity extends AppCompatActivity {
             isMine = mine;
         }
 
-        public int getAdjacentMines() {
-            return adjacentMines;
+        public boolean isOpen() {
+            return isOpen;
         }
 
-        public void setAdjacentMines(int adjacentMines) {
-            this.adjacentMines = adjacentMines;
+        public void setOpen(boolean open) {
+            isOpen = open;
         }
 
-        public boolean isRevealed() {
-            return isRevealed;
+        public int getNumber() {
+            return number;
         }
 
-        public void reveal() {
-            isRevealed = true;
-            button.setEnabled(false);
-            button.setBackgroundColor(getResources().getColor(android.R.color.darker_gray));
-        }
-
-        public Button getButton() {
-            return button;
-        }
-
-        public void setButton(Button button) {
-            this.button = button;
+        public void setNumber(int number) {
+            this.number = number;
         }
     }
 }
