@@ -92,11 +92,12 @@ public class GameActivity extends AppCompatActivity {
             isFirstClick = false;
             placeMines(row, col);
             calculateNumbers();
+            openInitialArea(row, col);
             startStopwatch();
+        } else {
+            openCell(row, col);
+            checkGameStatus();
         }
-
-        openCell(row, col);
-        checkGameStatus();
     }
 
     private void placeMines(int firstRow, int firstCol) {
@@ -105,7 +106,10 @@ public class GameActivity extends AppCompatActivity {
         while (placedMines < minesCount) {
             int r = random.nextInt(boardSize);
             int c = random.nextInt(boardSize);
-            if ((r != firstRow || c != firstCol) && !cells[r][c].isMine()) {
+            boolean isSafeZone = boardSize == 4 ?
+                    (Math.abs(r - firstRow) <= 1 && Math.abs(c - firstCol) <= 1) :
+                    (Math.abs(r - firstRow) <= 2 && Math.abs(c - firstCol) <= 2);
+            if (!isSafeZone && !cells[r][c].isMine()) {
                 cells[r][c].setMine(true);
                 placedMines++;
             }
@@ -132,23 +136,27 @@ public class GameActivity extends AppCompatActivity {
         }
     }
 
+    private void openInitialArea(int row, int col) {
+        int range = boardSize == 4 ? 1 : 2;
+        for (int di = -range; di <= range; di++) {
+            for (int dj = -range; dj <= range; dj++) {
+                int ni = row + di;
+                int nj = col + dj;
+                if (ni >= 0 && ni < boardSize && nj >= 0 && nj < boardSize) {
+                    openCell(ni, nj);
+                }
+            }
+        }
+    }
+
     private void openCell(int row, int col) {
         if (row < 0 || row >= boardSize || col < 0 || col >= boardSize || cells[row][col].isOpen()) {
             return;
         }
         cells[row][col].setOpen(true);
         if (cells[row][col].isMine()) {
-            for (int i = 0; i < boardSize; i++) {
-                for (int j = 0; j < boardSize; j++) {
-                    if (cells[i][j].isMine()) {
-                        cells[i][j].setText("X");
-                        cells[i][j].setBackgroundColor(getResources().getColor(android.R.color.holo_red_light));
-                    }
-                }
-            }
+            revealMines();
             stopStopwatch();
-            isFirstClick = true;
-            handler.postDelayed(this::initGame, 1000);
         } else {
             int number = cells[row][col].getNumber();
             cells[row][col].setText(number > 0 ? String.valueOf(number) : "");
@@ -190,9 +198,19 @@ public class GameActivity extends AppCompatActivity {
             }
         }
         if (closedNonMines == 0) {
+            revealMines();
             stopStopwatch();
-            isFirstClick = true;
-            handler.postDelayed(this::initGame, 1000);
+        }
+    }
+
+    private void revealMines() {
+        for (int i = 0; i < boardSize; i++) {
+            for (int j = 0; j < boardSize; j++) {
+                if (cells[i][j].isMine()) {
+                    cells[i][j].setText("X");
+                    cells[i][j].setBackgroundColor(getResources().getColor(android.R.color.holo_red_light));
+                }
+            }
         }
     }
 
