@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.GridLayout;
 import android.widget.TextView;
@@ -27,10 +28,13 @@ public class GameActivity extends AppCompatActivity {
     private Runnable stopwatchRunnable;
     private long startTime;
     private boolean isStopwatchRunning;
+    private boolean isGameOver = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setContentView(R.layout.activity_game);
 
         gridLayoutMines = findViewById(R.id.gridLayoutMines);
@@ -40,7 +44,7 @@ public class GameActivity extends AppCompatActivity {
         buttonBack = findViewById(R.id.buttonBack);
 
         boardSize = getIntent().getIntExtra("BOARD_SIZE", 4);
-        minesCount = getIntent().getIntExtra("MINES", 4);
+        minesCount = getIntent().getIntExtra("MINES", boardSize == 4 ? 6 : boardSize * boardSize / 4);
 
         isStopwatchRunning = false;
         startTime = 0;
@@ -51,6 +55,7 @@ public class GameActivity extends AppCompatActivity {
 
         buttonNewGame.setOnClickListener(v -> {
             isFirstClick = true;
+            isGameOver = false;
             stopStopwatch();
             stopwatchText.setText("Time: 0s");
             initGame();
@@ -60,6 +65,7 @@ public class GameActivity extends AppCompatActivity {
     }
 
     private void initGame() {
+        isGameOver = false;
         cells = new Cell[boardSize][boardSize];
         gridLayoutMines.removeAllViews();
         gridLayoutMines.setRowCount(boardSize);
@@ -79,7 +85,11 @@ public class GameActivity extends AppCompatActivity {
                 cells[i][j].setTextColor(getResources().getColor(android.R.color.black));
                 final int row = i;
                 final int col = j;
-                cells[i][j].setOnClickListener(v -> handleCellClick(row, col));
+                cells[i][j].setOnClickListener(v -> {
+                    if (!isGameOver) {
+                        handleCellClick(row, col);
+                    }
+                });
                 gridLayoutMines.addView(cells[i][j]);
             }
         }
@@ -106,9 +116,8 @@ public class GameActivity extends AppCompatActivity {
         while (placedMines < minesCount) {
             int r = random.nextInt(boardSize);
             int c = random.nextInt(boardSize);
-            boolean isSafeZone = boardSize == 4 ?
-                    (Math.abs(r - firstRow) <= 1 && Math.abs(c - firstCol) <= 1) :
-                    (Math.abs(r - firstRow) <= 2 && Math.abs(c - firstCol) <= 2);
+            // Уменьшаем безопасную зону до 3x3 для всех размеров поля
+            boolean isSafeZone = (Math.abs(r - firstRow) <= 1 && Math.abs(c - firstCol) <= 1);
             if (!isSafeZone && !cells[r][c].isMine()) {
                 cells[r][c].setMine(true);
                 placedMines++;
@@ -137,7 +146,7 @@ public class GameActivity extends AppCompatActivity {
     }
 
     private void openInitialArea(int row, int col) {
-        int range = boardSize == 4 ? 1 : 2;
+        int range = 1;
         for (int di = -range; di <= range; di++) {
             for (int dj = -range; dj <= range; dj++) {
                 int ni = row + di;
@@ -156,6 +165,7 @@ public class GameActivity extends AppCompatActivity {
         cells[row][col].setOpen(true);
         if (cells[row][col].isMine()) {
             revealMines();
+            isGameOver = true;
             stopStopwatch();
         } else {
             int number = cells[row][col].getNumber();
@@ -173,6 +183,9 @@ public class GameActivity extends AppCompatActivity {
                     break;
                 case 4:
                     cells[row][col].setTextColor(getResources().getColor(android.R.color.holo_purple));
+                    break;
+                case 5:
+                    cells[row][col].setTextColor(getResources().getColor(android.R.color.holo_orange_dark));
                     break;
                 default:
                     cells[row][col].setTextColor(getResources().getColor(android.R.color.black));
@@ -199,6 +212,7 @@ public class GameActivity extends AppCompatActivity {
         }
         if (closedNonMines == 0) {
             revealMines();
+            isGameOver = true;
             stopStopwatch();
         }
     }

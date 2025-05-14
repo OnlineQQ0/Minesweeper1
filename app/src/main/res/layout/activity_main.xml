@@ -24,7 +24,7 @@
         android:layout_width="200dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="40dp"
-        android:text="Режим 4×4"
+        android:text="Режим 8×8"
         app:layout_constraintBottom_toTopOf="@+id/button8x8"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -35,10 +35,36 @@
         android:layout_width="200dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="20dp"
-        android:text="Режим 8×8"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:text="Режим 12×12"
+        app:layout_constraintBottom_toTopOf="@+id/lightThemeButton"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/button4x4" />
+
+    <Button
+        android:id="@+id/lightThemeButton"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:text="Светлая тема ☀️"
+        android:backgroundTint="#FFFFFF"
+        android:textColor="#000000"
+        app:layout_constraintBottom_toTopOf="@+id/darkThemeButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/button8x8" />
+
+    <Button
+        android:id="@+id/darkThemeButton"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:text="Темная тема 🌙"
+        android:backgroundTint="#333333"
+        android:textColor="#FFFFFF"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/lightThemeButton" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
